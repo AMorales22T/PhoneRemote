@@ -4,10 +4,10 @@ import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .controllers.mouse import MouseController
-from .controllers.keyboard import KeyboardController
-from .controllers.media import MediaController
-from .controllers.system import SystemController
+from controllers.mouse import MouseController
+from controllers.keyboard import KeyboardController
+from controllers.media import MediaController
+from controllers.system import SystemController
 
 logger = logging.getLogger(__name__)
 
