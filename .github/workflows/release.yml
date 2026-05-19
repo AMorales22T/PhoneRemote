@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build
+        run: |
+          cd desktop
+          pip install -r requirements.txt
+          pyinstaller phoneremote.spec
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhoneRemote-Windows
+          path: desktop/dist/PhoneRemote.exe
+
+  build-ios:
+    name: Build iOS
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - name: Generate Project
+        run: cd ios && xcodegen generate
+      - name: Install Signing Files
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+      - name: Build Archive
+        run: |
+          cd ios
+          xcodebuild archive -project PhoneRemote.xcodeproj -scheme PhoneRemote -archivePath build/PhoneRemote.xcarchive -destination 'generic/platform=iOS' CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} PROVISIONING_PROFILE_SPECIFIER=${{ secrets.PROVISIONING_PROFILE_NAME }}
+      - name: Export IPA
+        run: |
+          cd ios
+          xcodebuild -exportArchive -archivePath build/PhoneRemote.xcarchive -exportPath build/ipa -exportOptionsPlist ExportOptions.plist
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhoneRemote-iOS
+          path: ios/build/ipa/PhoneRemote.ipa
+
+  release:
+    name: Create Release
+    needs: [build-windows, build-ios]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PhoneRemote-Windows
+          path: release-assets
+          
+      - name: Download iOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PhoneRemote-iOS
+          path: release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release-assets/PhoneRemote.exe
+            release-assets/PhoneRemote.ipa
+          generate_release_notes: true

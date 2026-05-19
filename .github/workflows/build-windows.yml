@@ -1,0 +1,39 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'desktop/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Windows EXE
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          cd desktop
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build Executable
+        run: |
+          cd desktop
+          pyinstaller phoneremote.spec
+
+      - name: Upload EXE Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhoneRemote.exe
+          path: desktop/dist/PhoneRemote.exe

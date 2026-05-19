@@ -1,0 +1,25 @@
+name: PhoneRemote
+options:
+  bundleIdPrefix: com.phoneremote
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1"
+    INFOPLIST_FILE: PhoneRemote/App/Info.plist
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE: false
+targets:
+  PhoneRemote:
+    type: application
+    platform: iOS
+    sources:
+      - PhoneRemote
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phoneremote.app
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: "${DEVELOPMENT_TEAM}"
+        PROVISIONING_PROFILE_SPECIFIER: "${PROVISIONING_PROFILE_SPECIFIER}"
