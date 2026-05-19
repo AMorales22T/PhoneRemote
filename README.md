@@ -24,6 +24,7 @@ Control your Windows PC from your iPhone via a seamless local WiFi connection. N
 ### 2. Install the iOS App
 1. Download `PhoneRemote.ipa` from the [Releases page](../../releases/latest).
 2. Install the IPA on your iPhone using:
+   - **LiveContainer** (unsigned IPA)
    - **[AltStore](https://altstore.io/)** (Recommended for personal use)
    - **[Sideloadly](https://sideloadly.io/)**
    - Developer Enterprise Program
@@ -63,18 +64,9 @@ open PhoneRemote.xcodeproj
 
 ## ⚙️ GitHub Actions CI/CD Setup
 
-This repository is configured to automatically build both the Windows `.exe` and iOS `.ipa` on every push to `main` or when a new tag is released.
+This repository is configured to automatically build the Windows `.exe` and an unsigned iOS `.ipa`.
 
-To make the iOS build work, you must configure the following Secrets in your GitHub Repository settings:
-
-1. `APPLE_TEAM_ID`: Your 10-character Apple Developer Team ID.
-2. `PROVISIONING_PROFILE_NAME`: The exact name of your provisioning profile.
-3. `IOS_CERTIFICATE_P12`: Your Apple Distribution Certificate (.p12) encoded in Base64.
-   * `base64 -i certificate.p12 | pbcopy` (Mac)
-4. `IOS_CERTIFICATE_PASSWORD`: The password you set when exporting the .p12 certificate.
-5. `IOS_PROVISIONING_PROFILE`: Your `.mobileprovision` file encoded in Base64.
-   * `base64 -i profile.mobileprovision | pbcopy` (Mac)
-6. `KEYCHAIN_PASSWORD`: A random password used temporarily by the GitHub Actions runner (e.g., `temp_password_123`).
+The iOS workflow is intended for LiveContainer, so it does not install Apple certificates, create a keychain, or require provisioning profile secrets. If GitHub Actions shows an `Install Apple Certificate` step, rerun the latest workflow from `main` after this change has been pushed.
 
 **How to trigger a Release:**
 ```bash
