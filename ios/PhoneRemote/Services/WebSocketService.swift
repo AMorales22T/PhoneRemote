@@ -31,10 +31,18 @@ class WebSocketService: ObservableObject {
         var components = URLComponents(string: urlString)
         let originalScheme = components?.scheme
         components?.scheme = originalScheme == "https" ? "wss" : "ws"
-        components?.path = "/ws/\(token)"
+        
+        if token.isEmpty {
+            // Without a token, we can't authenticate.
+            // Show an error explaining the user needs to scan QR.
+            errorMessage = "Conexión manual sin token. Escanea el código QR para obtener la URL completa, o ingresa la URL completa del QR."
+            return
+        } else {
+            components?.path = "/ws/\(token)"
+        }
         
         guard let url = components?.url else {
-            errorMessage = "URL inválida"
+            errorMessage = "URL inválida. Verifica la dirección IP y el puerto."
             return
         }
         
@@ -114,6 +122,13 @@ class WebSocketService: ObservableObject {
                     print("WebSocket receive error: \(error)")
                     self.handleDisconnect(reason: "No se pudo conectar al PC: \(error.localizedDescription)")
                 case .success(let message):
+                    // If we got a message, we are connected
+                    if !self.isConnected {
+                        self.isConnected = true
+                        self.reconnectAttempts = 0
+                        self.errorMessage = nil
+                    }
+                    
                     switch message {
                     case .string(let text):
                         self.handleIncomingJSON(text)

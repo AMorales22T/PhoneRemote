@@ -9,7 +9,7 @@ class PhoneRemoteGUI:
     def __init__(self, root, url: str):
         self.root = root
         self.root.title("PhoneRemote Server")
-        self.root.geometry("400x550")
+        self.root.geometry("400x600")
         self.root.resizable(False, False)
         self.root.configure(bg="#0a0a1a")
 
@@ -35,8 +35,17 @@ class PhoneRemoteGUI:
         self.qr_label.pack(pady=10)
 
         # URL Label
-        self.url_label = ttk.Label(main_frame, text=url, font=("Courier", 10), foreground="#a78bfa")
-        self.url_label.pack(pady=10)
+        self.url_label = ttk.Label(main_frame, text=url, font=("Courier", 9), foreground="#a78bfa", wraplength=360)
+        self.url_label.pack(pady=(10, 5))
+
+        # Copy URL Button
+        self.copy_btn = tk.Button(
+            main_frame, text="📋 Copiar URL", font=("Helvetica", 10),
+            bg="#7c3aed", fg="white", relief="flat", cursor="hand2",
+            activebackground="#6d28d9", activeforeground="white",
+            command=lambda: self._copy_url(url)
+        )
+        self.copy_btn.pack(pady=(0, 10))
 
         # Status Frame
         status_frame = ttk.Frame(main_frame)
@@ -68,3 +77,11 @@ class PhoneRemoteGUI:
                 
         # thread-safe UI update
         self.root.after(0, _update)
+
+    def _copy_url(self, url: str):
+        """Copy the WebSocket URL to the clipboard."""
+        self.root.clipboard_clear()
+        self.root.clipboard_append(url)
+        # Briefly change button text to show confirmation
+        self.copy_btn.configure(text="✅ Copiado!")
+        self.root.after(2000, lambda: self.copy_btn.configure(text="📋 Copiar URL"))

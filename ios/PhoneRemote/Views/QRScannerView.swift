@@ -43,7 +43,7 @@ struct QRScannerView: View {
             
             Spacer()
             
-            Button("Ingresar IP manualmente") {
+            Button(showingManualEntry ? "Ocultar" : "Ingresar URL manualmente") {
                 showingManualEntry.toggle()
             }
             .padding()
@@ -51,14 +51,15 @@ struct QRScannerView: View {
             
             if showingManualEntry {
                 HStack {
-                    TextField("IP (ej. 192.168.1.5)", text: $manualIP)
+                    TextField("ws://192.168.1.5:8888/ws/token", text: $manualIP)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .keyboardType(.numbersAndPunctuation)
+                        .keyboardType(.URL)
                         .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .font(.system(size: 13))
                     
                     Button("Conectar") {
-                        let url = "ws://\(manualIP):8888"
-                        ws.connect(urlString: url, token: "") // Manual connection assumes no token or default
+                        connectManually()
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
@@ -79,12 +80,16 @@ struct QRScannerView: View {
     
     private func handleQRResult(_ result: String) {
         guard !isConnecting else { return }
-        guard let url = URL(string: result),
+        
+        let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let url = URL(string: trimmed),
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             ws.errorMessage = "QR no válido"
             return
         }
 
+        // Direct ws:// or wss:// URL with token in path (new format)
         if ["ws", "wss"].contains(url.scheme?.lowercased() ?? ""),
            components.path.hasPrefix("/ws/") {
             isConnecting = true
@@ -95,16 +100,53 @@ struct QRScannerView: View {
 
         // Backward compatibility with older QR format:
         // http://192.168.1.X:8888?token=ABC
-        guard let token = components.queryItems?.first(where: { $0.name == "token" })?.value,
-              let host = url.host else {
-            ws.errorMessage = "QR no válido"
+        if let token = components.queryItems?.first(where: { $0.name == "token" })?.value,
+           let host = url.host {
+            let wsUrl = "ws://\(host):\(url.port ?? 8888)"
+            isConnecting = true
+            HapticService.playHeavy()
+            ws.connect(urlString: wsUrl, token: token)
             return
         }
-
-        let wsUrl = "ws://\(host):\(url.port ?? 8888)"
+        
+        ws.errorMessage = "QR no válido. Asegúrate de escanear el código correcto."
+    }
+    
+    private func connectManually() {
+        let input = manualIP.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty else {
+            ws.errorMessage = "Ingresa una dirección IP"
+            return
+        }
+        
+        // If user entered a full ws:// URL, use it directly
+        if input.lowercased().hasPrefix("ws://") || input.lowercased().hasPrefix("wss://") {
+            if let url = URL(string: input) {
+                isConnecting = true
+                HapticService.playHeavy()
+                ws.connect(webSocketURL: url)
+            } else {
+                ws.errorMessage = "URL inválida"
+            }
+            return
+        }
+        
+        // Parse host:port format
+        let parts = input.split(separator: ":", maxSplits: 1)
+        let host = String(parts[0])
+        let port: Int
+        if parts.count > 1, let p = Int(parts[1]) {
+            port = p
+        } else {
+            port = 8888
+        }
+        
+        // For manual connection without token, connect to the base and let server handle it
+        // We need to use the health endpoint first to verify, then connect WS
+        let wsUrlString = "ws://\(host):\(port)"
         isConnecting = true
         HapticService.playHeavy()
-        ws.connect(urlString: wsUrl, token: token)
+        ws.connect(urlString: wsUrlString, token: "")
     }
 }
 
