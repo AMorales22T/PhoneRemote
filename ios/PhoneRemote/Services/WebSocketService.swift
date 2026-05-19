@@ -22,7 +22,8 @@ class WebSocketService: ObservableObject {
     func connect(urlString: String, token: String) {
         // Build WS url: ws://ip:port/ws/token
         var components = URLComponents(string: urlString)
-        components?.scheme = components?.scheme == "https" ? "wss" : "ws"
+        let originalScheme = components?.scheme
+        components?.scheme = originalScheme == "https" ? "wss" : "ws"
         components?.path = "/ws/\(token)"
         
         guard let url = components?.url else {
@@ -56,7 +57,9 @@ class WebSocketService: ObservableObject {
     private func startPingTimer() {
         pingTimer?.invalidate()
         pingTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            self?.sendPing()
+            Task { @MainActor in
+                self?.sendPing()
+            }
         }
     }
     
@@ -93,25 +96,27 @@ class WebSocketService: ObservableObject {
     
     private func receiveMessage() {
         webSocketTask?.receive { [weak self] result in
-            switch result {
-            case .failure(let error):
-                print("WebSocket receive error: \(error)")
-                Task { @MainActor in
-                    self?.handleDisconnect()
-                }
-            case .success(let message):
-                switch message {
-                case .string(let text):
-                    self?.handleIncomingJSON(text)
-                case .data(let data):
-                    if let text = String(data: data, encoding: .utf8) {
-                        self?.handleIncomingJSON(text)
+            Task { @MainActor in
+                guard let self = self else { return }
+
+                switch result {
+                case .failure(let error):
+                    print("WebSocket receive error: \(error)")
+                    self.handleDisconnect()
+                case .success(let message):
+                    switch message {
+                    case .string(let text):
+                        self.handleIncomingJSON(text)
+                    case .data(let data):
+                        if let text = String(data: data, encoding: .utf8) {
+                            self.handleIncomingJSON(text)
+                        }
+                    @unknown default:
+                        break
                     }
-                @unknown default:
-                    break
+                    // Continue receiving
+                    self.receiveMessage()
                 }
-                // Continue receiving
-                self?.receiveMessage()
             }
         }
     }
@@ -121,15 +126,13 @@ class WebSocketService: ObservableObject {
         
         do {
             let status = try JSONDecoder().decode(ServerStatus.self, from: data)
-            Task { @MainActor in
-                if status.t == "status" {
-                    if let conn = status.connected {
-                        self.isConnected = conn
-                        self.reconnectAttempts = 0
-                    }
-                    if let vol = status.volume {
-                        self.serverVolume = vol
-                    }
+            if status.t == "status" {
+                if let conn = status.connected {
+                    isConnected = conn
+                    reconnectAttempts = 0
+                }
+                if let vol = status.volume {
+                    serverVolume = vol
                 }
             }
         } catch {
