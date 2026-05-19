@@ -18,6 +18,13 @@ class WebSocketService: ObservableObject {
     init() {
         self.urlSession = URLSession(configuration: .default)
     }
+
+    func connect(webSocketURL: URL) {
+        errorMessage = nil
+        reconnectAttempts = 0
+        currentURL = webSocketURL
+        connectToCurrentURL()
+    }
     
     func connect(urlString: String, token: String) {
         // Build WS url: ws://ip:port/ws/token
@@ -31,8 +38,7 @@ class WebSocketService: ObservableObject {
             return
         }
         
-        currentURL = url
-        connectToCurrentURL()
+        connect(webSocketURL: url)
     }
     
     private func connectToCurrentURL() {
@@ -68,7 +74,7 @@ class WebSocketService: ObservableObject {
             Task { @MainActor in
                 if let error = error {
                     print("Ping failed: \(error)")
-                    self?.handleDisconnect()
+                    self?.handleDisconnect(reason: "No se pudo hacer ping al PC: \(error.localizedDescription)")
                 } else if self?.isConnected == false {
                     self?.isConnected = true
                     self?.reconnectAttempts = 0
@@ -77,12 +83,16 @@ class WebSocketService: ObservableObject {
         }
     }
     
-    private func handleDisconnect() {
+    private func handleDisconnect(reason: String? = nil) {
         isConnected = false
         pingTimer?.invalidate()
         
         guard reconnectAttempts < maxReconnectAttempts else {
-            errorMessage = "Conexión perdida"
+            if let reason = reason {
+                errorMessage = reason
+            } else {
+                errorMessage = "Conexión perdida. Revisa que el PC y el iPhone estén en la misma Wi-Fi y que el firewall permita PhoneRemote."
+            }
             return
         }
         
@@ -102,7 +112,7 @@ class WebSocketService: ObservableObject {
                 switch result {
                 case .failure(let error):
                     print("WebSocket receive error: \(error)")
-                    self.handleDisconnect()
+                    self.handleDisconnect(reason: "No se pudo conectar al PC: \(error.localizedDescription)")
                 case .success(let message):
                     switch message {
                     case .string(let text):

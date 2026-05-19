@@ -5,6 +5,7 @@ struct QRScannerView: View {
     @EnvironmentObject var ws: WebSocketService
     @State private var manualIP = ""
     @State private var showingManualEntry = false
+    @State private var isConnecting = false
     
     var body: some View {
         VStack {
@@ -36,6 +37,7 @@ struct QRScannerView: View {
             if let error = ws.errorMessage {
                 Text(error)
                     .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
                     .padding()
             }
             
@@ -68,18 +70,39 @@ struct QRScannerView: View {
             }
         }
         .background(Color(.systemBackground).edgesIgnoringSafeArea(.all))
+        .onChange(of: ws.errorMessage) { error in
+            if error != nil {
+                isConnecting = false
+            }
+        }
     }
     
     private func handleQRResult(_ result: String) {
-        // Expected format: http://192.168.1.X:8888?token=ABC
+        guard !isConnecting else { return }
         guard let url = URL(string: result),
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let token = components.queryItems?.first(where: { $0.name == "token" })?.value else {
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             ws.errorMessage = "QR no válido"
             return
         }
-        
-        let wsUrl = "ws://\(url.host ?? ""):\(url.port ?? 8888)"
+
+        if ["ws", "wss"].contains(url.scheme?.lowercased() ?? ""),
+           components.path.hasPrefix("/ws/") {
+            isConnecting = true
+            HapticService.playHeavy()
+            ws.connect(webSocketURL: url)
+            return
+        }
+
+        // Backward compatibility with older QR format:
+        // http://192.168.1.X:8888?token=ABC
+        guard let token = components.queryItems?.first(where: { $0.name == "token" })?.value,
+              let host = url.host else {
+            ws.errorMessage = "QR no válido"
+            return
+        }
+
+        let wsUrl = "ws://\(host):\(url.port ?? 8888)"
+        isConnecting = true
         HapticService.playHeavy()
         ws.connect(urlString: wsUrl, token: token)
     }
@@ -112,6 +135,7 @@ struct QRCameraView: UIViewControllerRepresentable {
         func didFindQRCode(_ code: String) {
             if !hasHandled {
                 hasHandled = true
+                HapticService.playMedium()
                 onResult(code)
                 // Reset after 3 seconds to allow scanning again if failed
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
@@ -188,7 +212,6 @@ class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsD
         if let metadataObject = metadataObjects.first {
             guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
             guard let stringValue = readableObject.stringValue else { return }
-            HapticService.playMedium()
             delegate?.didFindQRCode(stringValue)
         }
     }

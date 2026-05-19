@@ -39,6 +39,18 @@ def set_config(token: str, gui_callback):
     state.token = token
     state.gui_update_callback = gui_callback
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "PhoneRemote"}
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "service": "PhoneRemote",
+        "connected_clients": state.connected_clients,
+    }
+
 @app.websocket("/ws/{client_token}")
 async def websocket_endpoint(websocket: WebSocket, client_token: str):
     if client_token != state.token:

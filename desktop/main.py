@@ -36,7 +36,7 @@ def main():
     token = secrets.token_urlsafe(12)
     
     # 3. Create Connection URL
-    url = f"http://{ip}:{port}?token={token}"
+    url = f"ws://{ip}:{port}/ws/{token}"
     logger.info(f"Server URL: {url}")
     
     # 4. Generate QR Code
